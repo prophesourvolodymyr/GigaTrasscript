@@ -41,12 +41,19 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Transcribe] Starting transcription for URL: ${twitterUrl}`);
 
-    // 2. Extract video URL from Twitter post
+    // 2. Extract video URL and metadata from Twitter post
     let videoUrl: string;
+    let videoTitle: string | undefined;
     try {
-      console.log('[Transcribe] Extracting video URL...');
-      videoUrl = await extractTwitterVideo(twitterUrl);
+      console.log('[Transcribe] Extracting video URL and metadata...');
+      const { getVideoMetadata } = await import('@/lib/videoExtractor');
+      const videoData = await getVideoMetadata(twitterUrl);
+      videoUrl = videoData.videoUrl;
+      videoTitle = videoData.title;
       console.log('[Transcribe] Video URL extracted successfully');
+      if (videoTitle) {
+        console.log('[Transcribe] Video title:', videoTitle);
+      }
     } catch (error: any) {
       console.error('[Transcribe] Video extraction failed:', error.message);
 
@@ -124,6 +131,7 @@ export async function POST(request: NextRequest) {
     const response: TranscribeResponse = {
       success: true,
       transcript,
+      videoTitle,
     };
 
     return NextResponse.json(response, { status: 200 });

@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import GlassSurface, { type GlassSurfaceProps } from '@/components/ui/GlassSurface';
 import ColorBends from '@/components/ui/ColorBends';
+import AnimatedCounter from '@/components/ui/AnimatedCounter';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const STORAGE_KEY = 'giga-transcript-api-key';
 
@@ -49,6 +51,8 @@ export default function Home() {
   const [settingsKey, setSettingsKey] = useState('');
   const [settingsShowKey, setSettingsShowKey] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
+  const [starCount, setStarCount] = useState<number | null>(null);
+  const [starHovered, setStarHovered] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -56,6 +60,26 @@ export default function Home() {
     if (stored) {
       setApiKey(stored);
     }
+  }, []);
+
+  // Fetch GitHub stars count
+  useEffect(() => {
+    const fetchStars = async () => {
+      try {
+        const response = await fetch('/api/github?owner=prophesourvolodymyr&repo=GigaTrasscript');
+        const data = await response.json();
+        if (data.success && data.data) {
+          setStarCount(data.data.stars);
+        }
+      } catch (error) {
+        console.error('Failed to fetch GitHub stars:', error);
+      }
+    };
+
+    fetchStars();
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchStars, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -147,6 +171,7 @@ export default function Home() {
                   ...j,
                   status: 'completed' as TranscriptionStatus,
                   transcript: data.transcript,
+                  videoTitle: data.videoTitle,
                   completedAt: Date.now(),
                 }
               : j
@@ -233,7 +258,11 @@ export default function Home() {
     }
   };
 
-  const formatUrl = (url: string) => {
+  const formatUrl = (url: string, title?: string) => {
+    if (title) {
+      // Truncate title if too long
+      return title.length > 60 ? title.slice(0, 60) + '...' : title;
+    }
     const match = url.match(/status\/(\d+)/);
     return match ? `Tweet ${match[1].slice(-6)}` : 'Tweet';
   };
@@ -253,14 +282,14 @@ export default function Home() {
         parallax={0.5}
         noise={0}
         colors={[
-          '#4a1f5e',
-          '#5e4a1f',
-          '#1f5e4a',
-          '#1f4a5e',
-          '#5e1f4a',
-          '#4a5e1f',
-          '#5e5e1f',
-          '#1f5e5e',
+          '#3a1050',
+          '#501038',
+          '#105038',
+          '#103850',
+          '#503810',
+          '#385010',
+          '#103838',
+          '#381038',
         ]}
         transparent={false}
         />
@@ -289,13 +318,42 @@ export default function Home() {
                 Settings
               </button>
               <a
-                href="https://github.com/volodymurvasualkiw/twitter-transcriber"
+                href="https://github.com/prophesourvolodymyr/GigaTrasscript"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-white/30 hover:bg-white/10 hover:text-white"
+                onMouseEnter={() => setStarHovered(true)}
+                onMouseLeave={() => setStarHovered(false)}
+                className="group relative flex items-center gap-2 overflow-hidden rounded-full border border-white/15 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-yellow-400/40 hover:bg-white/10 hover:text-white"
               >
-                <Star className="h-4 w-4" />
-                Star
+                <div className="relative">
+                  <Star
+                    className={`h-4 w-4 transition-all duration-300 ${
+                      starHovered ? 'fill-yellow-400 text-yellow-400 scale-110' : 'text-slate-200'
+                    }`}
+                  />
+                  {starHovered && (
+                    <>
+                      <span className="absolute inset-0 animate-ping">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 opacity-75" />
+                      </span>
+                    </>
+                  )}
+                </div>
+                <span className="relative z-10">
+                  {starCount !== null ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className={starHovered ? 'text-yellow-400' : ''}>Star</span>
+                      <AnimatedCounter
+                        value={starCount}
+                        duration={2000}
+                        className={`font-semibold tabular-nums ${starHovered ? 'text-yellow-400' : 'text-slate-100'}`}
+                        formatValue={(v) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toString()}
+                      />
+                    </span>
+                  ) : (
+                    'Star on GitHub'
+                  )}
+                </span>
               </a>
             </div>
           </div>
@@ -404,7 +462,7 @@ export default function Home() {
                                 {getStatusIcon(job.status)}
                               </div>
                               <div className="text-left">
-                                <div className="font-medium text-white">{formatUrl(job.twitterUrl)}</div>
+                                <div className="font-medium text-white">{formatUrl(job.twitterUrl, job.videoTitle)}</div>
                                 <div className="text-sm text-slate-300">{getStatusText(job)}</div>
                               </div>
                             </div>
@@ -438,14 +496,29 @@ export default function Home() {
       </div>
     </div>
 
-    {showSettings && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-lg p-4">
-        <GlassSurface
-          {...glassPreset}
-          width="100%"
-          height="auto"
-          className="max-h-[90vh] w-full max-w-xl"
+    <AnimatePresence>
+      {showSettings && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-lg p-4"
+          onClick={() => setShowSettings(false)}
         >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.34, 1.56, 0.64, 1] }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GlassSurface
+              {...glassPreset}
+              width="100%"
+              height="auto"
+              className="max-h-[90vh] w-full max-w-xl"
+            >
           <div className="flex h-full w-full flex-col gap-6 px-8 py-6">
             <div className="flex items-start justify-between">
               <div>
@@ -517,23 +590,41 @@ export default function Home() {
             </div>
           </div>
         </GlassSurface>
-      </div>
-    )}
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
 
-    {viewingJob && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-lg p-4">
-          <GlassSurface
-            {...glassPreset}
-            width="100%"
-            height="auto"
-            className="max-h-[80vh] w-full max-w-3xl"
+    <AnimatePresence>
+      {viewingJob && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-lg p-4"
+          onClick={() => setViewingJob(null)}
+        >
+          <motion.div
+            initial={{ y: '100%', opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: '100%', opacity: 0 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-3xl"
           >
+            <GlassSurface
+              {...glassPreset}
+              width="100%"
+              height="auto"
+              className="max-h-[80vh] w-full"
+            >
             <div className="flex h-full w-full flex-col gap-6 px-8 py-6">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-2xl font-semibold text-white">Transcript</h3>
                   <p className="text-sm text-slate-300">
-                    {formatUrl(viewingJob.twitterUrl)}
+                    {viewingJob.videoTitle || formatUrl(viewingJob.twitterUrl)}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -574,8 +665,10 @@ export default function Home() {
               </div>
             </div>
           </GlassSurface>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+    </AnimatePresence>
     </main>
   );
 }

@@ -156,14 +156,9 @@ async function extractVideoRapidAPI(tweetUrl: string): Promise<TwitterVideoData>
     }
   }
 
-  // All endpoints failed
-  if (lastError?.response?.status === 403) {
-    throw new Error(
-      'RapidAPI key not authorized. Please subscribe to a Twitter Video Downloader API at rapidapi.com/hub'
-    );
-  }
-
-  throw new Error(lastError?.message || 'Failed to extract video from Twitter');
+  // All endpoints failed - return the error to be caught by extractTwitterVideo
+  // This will trigger the fallback method
+  throw lastError || new Error('Failed to extract video from Twitter');
 }
 
 /**
@@ -241,15 +236,24 @@ export async function extractTwitterVideo(tweetUrl: string): Promise<string> {
     return videoData.videoUrl;
   } catch (error: any) {
     // If RapidAPI fails, try fallback method
-    console.error('Primary extraction failed:', error.message);
+    console.log('[VideoExtractor] Primary method failed, trying fallback...');
+    console.error('[VideoExtractor] Primary error:', error.message);
 
     try {
       const videoData = await extractVideoFallback(tweetUrl);
       return videoData.videoUrl;
     } catch (fallbackError: any) {
-      // Both methods failed
+      // Both methods failed - provide helpful error message
+      const is403 = error?.response?.status === 403;
+
+      if (is403) {
+        throw new Error(
+          'Unable to extract video. Please subscribe to a Twitter Video Downloader API at rapidapi.com/hub for better reliability, or try a different video URL.'
+        );
+      }
+
       throw new Error(
-        `Failed to extract video: ${error.message}. ${fallbackError.message}`
+        `Failed to extract video. ${error.message}. Fallback also failed: ${fallbackError.message}`
       );
     }
   }
@@ -263,5 +267,19 @@ export async function getVideoMetadata(tweetUrl: string): Promise<TwitterVideoDa
     throw new Error('Invalid Twitter/X URL');
   }
 
-  return await extractVideoRapidAPI(tweetUrl);
+  try {
+    // Try RapidAPI first for full metadata
+    return await extractVideoRapidAPI(tweetUrl);
+  } catch (error: any) {
+    console.log('[VideoExtractor] Metadata extraction failed, trying fallback...');
+
+    // Fallback: try to get basic video data without title
+    try {
+      const videoData = await extractVideoFallback(tweetUrl);
+      return videoData;
+    } catch (fallbackError: any) {
+      // If both fail, throw the original error
+      throw error;
+    }
+  }
 }

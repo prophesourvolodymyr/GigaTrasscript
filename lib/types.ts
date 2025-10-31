@@ -9,6 +9,7 @@ export interface TranscribeResponse {
   success: boolean;
   transcript?: string;
   duration?: number;
+  videoTitle?: string;
   error?: string;
   errorCode?: ErrorCode;
 }
