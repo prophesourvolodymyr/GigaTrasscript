@@ -32,3 +32,15 @@ yarn-error.log*
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# Project Management & Progress Files (Private)
+PROGRESS.md
+AI_AGENT_GUIDE.md
+LINEAR_SYNC.md
+LINEAR_PROJECT_PLAN.md
+USER-INSTRUCTIONS.md
+USER-TO-DO-INSTRUCTIONS.md
+CODEBASE_GUIDE.md
+IDEAS\SUGGESTIONS.md
+Project Management/
+Project Managment/
